@@ -52,8 +52,6 @@ import org.threeten.extra.PeriodDuration;
  * for StandardSQLTypeName.INT64). Alternatively, an instance can be constructed by calling {@link
  * #of(Object, Class)} with the value and a Class object, which will use these mappings:
  *
- * <p>
- *
  * <ul>
  *   <li>Boolean: StandardSQLTypeName.BOOL
  *   <li>String: StandardSQLTypeName.STRING
@@ -258,6 +256,11 @@ public abstract class QueryParameterValue implements Serializable {
     return of(value, StandardSQLTypeName.STRING);
   }
 
+  /** Creates a {@code QueryParameterValue} object with a type of GEOGRAPHY. */
+  public static QueryParameterValue geography(String value) {
+    return of(value, StandardSQLTypeName.GEOGRAPHY);
+  }
+
   /**
    * Creates a {@code QueryParameterValue} object with a type of JSON. Currently, this is only
    * supported in INSERT, not in query as a filter
@@ -344,7 +347,11 @@ public abstract class QueryParameterValue implements Serializable {
   public static <T> QueryParameterValue array(T[] array, StandardSQLTypeName type) {
     List<QueryParameterValue> listValues = new ArrayList<>();
     for (T obj : array) {
-      listValues.add(QueryParameterValue.of(obj, type));
+      if (type == StandardSQLTypeName.STRUCT) {
+        listValues.add((QueryParameterValue) obj);
+      } else {
+        listValues.add(QueryParameterValue.of(obj, type));
+      }
     }
     return QueryParameterValue.newBuilder()
         .setArrayValues(listValues)
@@ -369,6 +376,8 @@ public abstract class QueryParameterValue implements Serializable {
       return StandardSQLTypeName.BOOL;
     } else if (String.class.isAssignableFrom(type)) {
       return StandardSQLTypeName.STRING;
+    } else if (String.class.isAssignableFrom(type)) {
+      return StandardSQLTypeName.GEOGRAPHY;
     } else if (Integer.class.isAssignableFrom(type)) {
       return StandardSQLTypeName.INT64;
     } else if (Long.class.isAssignableFrom(type)) {
@@ -421,6 +430,8 @@ public abstract class QueryParameterValue implements Serializable {
         }
         break;
       case STRING:
+        return value.toString();
+      case GEOGRAPHY:
         return value.toString();
       case JSON:
         if (value instanceof String || value instanceof JsonObject) return value.toString();
@@ -513,9 +524,15 @@ public abstract class QueryParameterValue implements Serializable {
     QueryParameterType typePb = new QueryParameterType();
     typePb.setType(getType().toString());
     if (getArrayType() != null) {
-      QueryParameterType arrayTypePb = new QueryParameterType();
-      arrayTypePb.setType(getArrayType().toString());
-      typePb.setArrayType(arrayTypePb);
+      List<QueryParameterValue> values = getArrayValues();
+      if (getArrayType() == StandardSQLTypeName.STRUCT && values != null && values.size() != 0) {
+        QueryParameterType structType = values.get(0).toTypePb();
+        typePb.setArrayType(structType);
+      } else {
+        QueryParameterType arrayTypePb = new QueryParameterType();
+        arrayTypePb.setType(getArrayType().toString());
+        typePb.setArrayType(arrayTypePb);
+      }
     }
     if (getStructTypes() != null) {
       List<QueryParameterType.StructTypes> structTypes = new ArrayList<>();

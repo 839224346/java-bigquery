@@ -21,6 +21,7 @@ import com.google.api.services.bigquery.model.JobConfiguration;
 import com.google.api.services.bigquery.model.JobStatistics2;
 import com.google.api.services.bigquery.model.JobStatistics3;
 import com.google.api.services.bigquery.model.JobStatistics4;
+import com.google.api.services.bigquery.model.QueryParameter;
 import com.google.cloud.StringEnumType;
 import com.google.cloud.StringEnumValue;
 import com.google.common.base.Function;
@@ -100,9 +101,13 @@ public abstract class JobStatistics implements Serializable {
 
     private final List<Long> destinationUriFileCounts;
 
+    private final Long inputBytes;
+
     static final class Builder extends JobStatistics.Builder<ExtractStatistics, Builder> {
 
       private List<Long> destinationUriFileCounts;
+
+      private Long inputBytes;
 
       private Builder() {}
 
@@ -110,11 +115,17 @@ public abstract class JobStatistics implements Serializable {
         super(statisticsPb);
         if (statisticsPb.getExtract() != null) {
           this.destinationUriFileCounts = statisticsPb.getExtract().getDestinationUriFileCounts();
+          this.inputBytes = statisticsPb.getExtract().getInputBytes();
         }
       }
 
       Builder setDestinationUriFileCounts(List<Long> destinationUriFileCounts) {
         this.destinationUriFileCounts = destinationUriFileCounts;
+        return self();
+      }
+
+      Builder setInputBytes(Long inputBytes) {
+        this.inputBytes = inputBytes;
         return self();
       }
 
@@ -127,6 +138,7 @@ public abstract class JobStatistics implements Serializable {
     private ExtractStatistics(Builder builder) {
       super(builder);
       this.destinationUriFileCounts = builder.destinationUriFileCounts;
+      this.inputBytes = builder.inputBytes;
     }
 
     /**
@@ -136,6 +148,11 @@ public abstract class JobStatistics implements Serializable {
      */
     public List<Long> getDestinationUriFileCounts() {
       return destinationUriFileCounts;
+    }
+
+    /** Returns number of user bytes extracted into the result. */
+    public Long getInputBytes() {
+      return inputBytes;
     }
 
     @Override
@@ -158,9 +175,10 @@ public abstract class JobStatistics implements Serializable {
 
     @Override
     com.google.api.services.bigquery.model.JobStatistics toPb() {
-      com.google.api.services.bigquery.model.JobStatistics statisticsPb = super.toPb();
-      return statisticsPb.setExtract(
-          new JobStatistics4().setDestinationUriFileCounts(destinationUriFileCounts));
+      JobStatistics4 extractStatisticsPb = new JobStatistics4();
+      extractStatisticsPb.setDestinationUriFileCounts(destinationUriFileCounts);
+      extractStatisticsPb.setInputBytes(inputBytes);
+      return super.toPb().setExtract(extractStatisticsPb);
     }
 
     static Builder newBuilder() {
@@ -339,6 +357,9 @@ public abstract class JobStatistics implements Serializable {
     private final List<QueryStage> queryPlan;
     private final List<TimelineSample> timeline;
     private final Schema schema;
+    private final SearchStats searchStats;
+    private final MetadataCacheStats metadataCacheStats;
+    private final List<QueryParameter> queryParameters;
 
     /**
      * StatementType represents possible types of SQL statements reported as part of the
@@ -421,6 +442,10 @@ public abstract class JobStatistics implements Serializable {
       private List<QueryStage> queryPlan;
       private List<TimelineSample> timeline;
       private Schema schema;
+      private List<QueryParameter> queryParameters;
+      private SearchStats searchStats;
+
+      private MetadataCacheStats metadataCacheStats;
 
       private Builder() {}
 
@@ -467,6 +492,13 @@ public abstract class JobStatistics implements Serializable {
           }
           if (statisticsPb.getQuery().getSchema() != null) {
             this.schema = Schema.fromPb(statisticsPb.getQuery().getSchema());
+          }
+          if (statisticsPb.getQuery().getSearchStatistics() != null) {
+            this.searchStats = SearchStats.fromPb(statisticsPb.getQuery().getSearchStatistics());
+          }
+          if (statisticsPb.getQuery().getMetadataCacheStatistics() != null) {
+            this.metadataCacheStats =
+                MetadataCacheStats.fromPb(statisticsPb.getQuery().getMetadataCacheStatistics());
           }
           if (statisticsPb.getQuery().getDmlStats() != null) {
             this.dmlStats = DmlStats.fromPb(statisticsPb.getQuery().getDmlStats());
@@ -569,6 +601,21 @@ public abstract class JobStatistics implements Serializable {
         return self();
       }
 
+      Builder setSearchStats(SearchStats searchStats) {
+        this.searchStats = searchStats;
+        return self();
+      }
+
+      Builder setMetadataCacheStats(MetadataCacheStats metadataCacheStats) {
+        this.metadataCacheStats = metadataCacheStats;
+        return self();
+      }
+
+      Builder setQueryParameters(List<QueryParameter> queryParameters) {
+        this.queryParameters = queryParameters;
+        return self();
+      }
+
       @Override
       QueryStatistics build() {
         return new QueryStatistics(this);
@@ -595,6 +642,9 @@ public abstract class JobStatistics implements Serializable {
       this.queryPlan = builder.queryPlan;
       this.timeline = builder.timeline;
       this.schema = builder.schema;
+      this.searchStats = builder.searchStats;
+      this.metadataCacheStats = builder.metadataCacheStats;
+      this.queryParameters = builder.queryParameters;
     }
 
     /** Returns query statistics specific to the use of BI Engine. */
@@ -715,6 +765,28 @@ public abstract class JobStatistics implements Serializable {
       return schema;
     }
 
+    /**
+     * Statistics for a search query. Populated as part of JobStatistics2. Provides information
+     * about how indexes are used in search queries. If an index is not used, you can retrieve
+     * debugging information about the reason why.
+     */
+    public SearchStats getSearchStats() {
+      return searchStats;
+    }
+
+    /** Statistics for metadata caching in BigLake tables. */
+    public MetadataCacheStats getMetadataCacheStats() {
+      return metadataCacheStats;
+    }
+
+    /**
+     * Standard SQL only: Returns a list of undeclared query parameters detected during a dry run
+     * validation.
+     */
+    public List<QueryParameter> getQueryParameters() {
+      return queryParameters;
+    }
+
     @Override
     ToStringHelper toStringHelper() {
       return super.toStringHelper()
@@ -725,7 +797,10 @@ public abstract class JobStatistics implements Serializable {
           .add("totalBytesProcessed", totalBytesProcessed)
           .add("queryPlan", queryPlan)
           .add("timeline", timeline)
-          .add("schema", schema);
+          .add("schema", schema)
+          .add("searchStats", searchStats)
+          .add("metadataCacheStats", metadataCacheStats)
+          .add("queryParameters", queryParameters);
     }
 
     @Override
@@ -746,7 +821,10 @@ public abstract class JobStatistics implements Serializable {
           totalBytesBilled,
           totalBytesProcessed,
           queryPlan,
-          schema);
+          schema,
+          searchStats,
+          metadataCacheStats,
+          queryParameters);
     }
 
     @Override
@@ -787,6 +865,15 @@ public abstract class JobStatistics implements Serializable {
       }
       if (schema != null) {
         queryStatisticsPb.setSchema(schema.toPb());
+      }
+      if (searchStats != null) {
+        queryStatisticsPb.setSearchStatistics(searchStats.toPb());
+      }
+      if (metadataCacheStats != null) {
+        queryStatisticsPb.setMetadataCacheStatistics(metadataCacheStats.toPb());
+      }
+      if (queryParameters != null) {
+        queryStatisticsPb.setUndeclaredQueryParameters(queryParameters);
       }
       return super.toPb().setQuery(queryStatisticsPb);
     }

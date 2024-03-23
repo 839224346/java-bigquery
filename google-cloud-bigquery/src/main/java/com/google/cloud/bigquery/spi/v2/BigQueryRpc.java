@@ -40,12 +40,13 @@ import java.util.Map;
 @InternalExtensionOnly
 public interface BigQueryRpc extends ServiceRpc {
 
-  // These options are part of the Google Cloud BigQuery query parameters
+  // These options are part of the Google Cloud BigQuery query parameters.
   enum Option {
     FIELDS("fields"),
     DELETE_CONTENTS("deleteContents"),
     ALL_DATASETS("all"),
     ALL_USERS("allUsers"),
+    AUTODETECT_SCHEMA("autodetectSchema"),
     LABEL_FILTER("filter"),
     MIN_CREATION_TIME("minCreationTime"),
     MAX_CREATION_TIME("maxCreationTime"),
@@ -55,7 +56,8 @@ public interface BigQueryRpc extends ServiceRpc {
     START_INDEX("startIndex"),
     STATE_FILTER("stateFilter"),
     TIMEOUT("timeoutMs"),
-    REQUESTED_POLICY_VERSION("requestedPolicyVersion");
+    REQUESTED_POLICY_VERSION("requestedPolicyVersion"),
+    TABLE_METADATA_VIEW("view");
 
     private final String value;
 
@@ -121,6 +123,13 @@ public interface BigQueryRpc extends ServiceRpc {
    * @throws BigQueryException upon failure
    */
   Job create(Job job, Map<Option, ?> options);
+
+  /**
+   * Creates a new query job.
+   *
+   * @throws BigQueryException upon failure
+   */
+  Job createJobForQuery(Job job);
 
   /**
    * Delete the requested dataset.
@@ -247,11 +256,26 @@ public interface BigQueryRpc extends ServiceRpc {
       String projectId, String datasetId, String tableId, Map<Option, ?> options);
 
   /**
+   * Lists the table's rows with a limit on how many rows of data to pre-fetch.
+   *
+   * @throws BigQueryException upon failure
+   */
+  TableDataList listTableDataWithRowLimit(
+      String projectId, String datasetId, String tableId, Integer rowLimit, String pageToken);
+
+  /**
    * Returns the requested job or {@code null} if not found.
    *
    * @throws BigQueryException upon failure
    */
   Job getJob(String projectId, String jobId, String location, Map<Option, ?> options);
+
+  /**
+   * Returns the requested query job or {@code null} if not found.
+   *
+   * @throws BigQueryException upon failure
+   */
+  Job getQueryJob(String projectId, String jobId, String location);
 
   /**
    * Lists the project's jobs.
@@ -285,6 +309,15 @@ public interface BigQueryRpc extends ServiceRpc {
    */
   GetQueryResultsResponse getQueryResults(
       String projectId, String jobId, String location, Map<Option, ?> options);
+
+  /**
+   * Returns results of the query with a limit on how many rows of data to pre-fetch associated with
+   * the provided job.
+   *
+   * @throws BigQueryException upon failure
+   */
+  GetQueryResultsResponse getQueryResultsWithRowLimit(
+      String projectId, String jobId, String location, Integer preFetchedRowLimit, Long timeoutMs);
 
   /**
    * Runs a BigQuery SQL query synchronously and returns query results if the query completes within

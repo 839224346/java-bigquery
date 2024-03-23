@@ -16,13 +16,14 @@
 
 package com.google.cloud.bigquery;
 
-import static org.assertj.core.api.Assertions.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 import com.google.api.services.bigquery.model.QueryRequest;
 import com.google.cloud.bigquery.JobInfo.CreateDisposition;
 import com.google.cloud.bigquery.JobInfo.SchemaUpdateOption;
 import com.google.cloud.bigquery.JobInfo.WriteDisposition;
+import com.google.cloud.bigquery.QueryJobConfiguration.JobCreationMode;
 import com.google.cloud.bigquery.QueryJobConfiguration.Priority;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -105,6 +106,8 @@ public class QueryRequestInfoTest {
       ImmutableList.of(STRING_PARAMETER, TIMESTAMP_PARAMETER);
   private static final Map<String, QueryParameterValue> NAME_PARAMETER =
       ImmutableMap.of("string", STRING_PARAMETER, "timestamp", TIMESTAMP_PARAMETER);
+  private static final JobCreationMode jobCreationModeRequired =
+      JobCreationMode.JOB_CREATION_REQUIRED;
   private static final QueryJobConfiguration QUERY_JOB_CONFIGURATION =
       QueryJobConfiguration.newBuilder(QUERY)
           .setUseQueryCache(USE_QUERY_CACHE)
@@ -131,6 +134,7 @@ public class QueryRequestInfoTest {
           .setConnectionProperties(CONNECTION_PROPERTIES)
           .setPositionalParameters(POSITIONAL_PARAMETER)
           .setMaxResults(100L)
+          .setJobCreationMode(jobCreationModeRequired)
           .build();
   QueryRequestInfo REQUEST_INFO = new QueryRequestInfo(QUERY_JOB_CONFIGURATION);
   private static final QueryJobConfiguration QUERY_JOB_CONFIGURATION_SUPPORTED =
@@ -150,8 +154,12 @@ public class QueryRequestInfoTest {
 
   @Test
   public void testIsFastQuerySupported() {
-    assertEquals(false, REQUEST_INFO.isFastQuerySupported());
-    assertEquals(true, REQUEST_INFO_SUPPORTED.isFastQuerySupported());
+    JobId jobIdSupported = JobId.newBuilder().build();
+    JobId jobIdNotSupported = JobId.newBuilder().setJob("random-job-id").build();
+    assertEquals(false, REQUEST_INFO.isFastQuerySupported(jobIdSupported));
+    assertEquals(true, REQUEST_INFO_SUPPORTED.isFastQuerySupported(jobIdSupported));
+    assertEquals(false, REQUEST_INFO.isFastQuerySupported(jobIdNotSupported));
+    assertEquals(false, REQUEST_INFO_SUPPORTED.isFastQuerySupported(jobIdNotSupported));
   }
 
   @Test
@@ -167,8 +175,29 @@ public class QueryRequestInfoTest {
     compareQueryRequestInfo(new QueryRequestInfo(QUERY_JOB_CONFIGURATION), REQUEST_INFO);
   }
 
+  /*
+  Ref: https://github.com/googleapis/java-bigquery/issues/2083
+  Refactoring to remove the assert4j dependency which was causing RequireUpperBoundDeps Error
+   */
   private void compareQueryRequestInfo(QueryRequestInfo expected, QueryRequestInfo actual) {
+    QueryRequest expectedQueryReq = expected.toPb();
+    QueryRequest actualQueryReq = actual.toPb();
+
     // requestId are expected to be different
-    assertThat(actual).isEqualToIgnoringGivenFields(expected, "requestId");
+    assertNotEquals(expectedQueryReq.getRequestId(), actualQueryReq.getRequestId());
+    // rest of the attributes should be equal
+    assertEquals(
+        expectedQueryReq.getConnectionProperties(), actualQueryReq.getConnectionProperties());
+    assertEquals(expectedQueryReq.getDefaultDataset(), actualQueryReq.getDefaultDataset());
+    assertEquals(expectedQueryReq.getDryRun(), actualQueryReq.getDryRun());
+    assertEquals(expectedQueryReq.getLabels(), actualQueryReq.getLabels());
+    assertEquals(expectedQueryReq.getMaximumBytesBilled(), actualQueryReq.getMaximumBytesBilled());
+    assertEquals(expectedQueryReq.getMaxResults(), actualQueryReq.getMaxResults());
+    assertEquals(expectedQueryReq.getQuery(), actualQueryReq.getQuery());
+    assertEquals(expectedQueryReq.getQueryParameters(), actualQueryReq.getQueryParameters());
+    assertEquals(expectedQueryReq.getCreateSession(), actualQueryReq.getCreateSession());
+    assertEquals(expectedQueryReq.getUseQueryCache(), actualQueryReq.getUseQueryCache());
+    assertEquals(expectedQueryReq.getUseLegacySql(), actualQueryReq.getUseLegacySql());
+    assertEquals(expectedQueryReq.get("jobCreationMode"), actualQueryReq.get("jobCreationMode"));
   }
 }

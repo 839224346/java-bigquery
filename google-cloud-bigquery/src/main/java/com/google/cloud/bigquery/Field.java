@@ -62,6 +62,9 @@ public final class Field implements Serializable {
   private final Long maxLength;
   private final Long scale;
   private final Long precision;
+  private final String defaultValueExpression;
+  private final String collation;
+  private final FieldElementType rangeElementType;
 
   /**
    * Mode for a BigQuery Table field. {@link Mode#NULLABLE} fields can be set to {@code null},
@@ -85,6 +88,9 @@ public final class Field implements Serializable {
     private Long maxLength;
     private Long scale;
     private Long precision;
+    private String defaultValueExpression;
+    private String collation;
+    private FieldElementType rangeElementType;
 
     private Builder() {}
 
@@ -98,6 +104,9 @@ public final class Field implements Serializable {
       this.maxLength = field.maxLength;
       this.scale = field.scale;
       this.precision = field.precision;
+      this.defaultValueExpression = field.defaultValueExpression;
+      this.collation = field.collation;
+      this.rangeElementType = field.rangeElementType;
     }
 
     /**
@@ -245,6 +254,53 @@ public final class Field implements Serializable {
       return this;
     }
 
+    /**
+     * DefaultValueExpression is used to specify the default value of a field using a SQL
+     * expression. It can only be set for top level fields (columns).
+     *
+     * <p>You can use struct or array expression to specify default value for the entire struct or
+     * array. The valid SQL expressions are:
+     *
+     * <pre>
+     *   Literals for all data types, including STRUCT and ARRAY.
+     *   The following functions:
+     *      - CURRENT_TIMESTAMP
+     *      - CURRENT_TIME
+     *      - CURRENT_DATE
+     *      - CURRENT_DATETIME
+     *      - GENERATE_UUID
+     *      - RAND
+     *      - SESSION_USER
+     *      - ST_GEOGPOINT
+     *
+     *   Struct or array composed with the above allowed functions, for example:
+     *      "[CURRENT_DATE(), DATE '2020-01-01']"
+     * </pre>
+     */
+    public Builder setDefaultValueExpression(String defaultValueExpression) {
+      this.defaultValueExpression = defaultValueExpression;
+      return this;
+    }
+
+    /**
+     * Optional. Field collation can be set only when the type of field is STRING. The following
+     * values are supported:
+     *
+     * <p>* 'und:ci': undetermined locale, case insensitive. * '': empty string. Default to
+     * case-sensitive behavior. (-- A wrapper is used here because it is possible to set the value
+     * to the empty string. --)
+     */
+    public Builder setCollation(String collation) {
+      this.collation = collation;
+      return this;
+    }
+
+    /** Optional. Field range element type can be set only when the type of field is RANGE. */
+    public Builder setRangeElementType(FieldElementType rangeElementType) {
+      this.rangeElementType = rangeElementType;
+      return this;
+    }
+
     /** Creates a {@code Field} object. */
     public Field build() {
       return new Field(this);
@@ -261,6 +317,9 @@ public final class Field implements Serializable {
     this.maxLength = builder.maxLength;
     this.scale = builder.scale;
     this.precision = builder.precision;
+    this.defaultValueExpression = builder.defaultValueExpression;
+    this.collation = builder.collation;
+    this.rangeElementType = builder.rangeElementType;
   }
 
   /** Returns the field name. */
@@ -311,6 +370,20 @@ public final class Field implements Serializable {
     return precision;
   }
 
+  /** Return the default value of the field. */
+  public String getDefaultValueExpression() {
+    return defaultValueExpression;
+  }
+
+  public String getCollation() {
+    return collation;
+  }
+
+  /** Return the range element type the field. */
+  public FieldElementType getRangeElementType() {
+    return rangeElementType;
+  }
+
   /**
    * Returns the list of sub-fields if {@link #getType()} is a {@link LegacySQLTypeName#RECORD}.
    * Returns {@code null} otherwise.
@@ -335,12 +408,15 @@ public final class Field implements Serializable {
         .add("maxLength", maxLength)
         .add("scale", scale)
         .add("precision", precision)
+        .add("defaultValueExpression", defaultValueExpression)
+        .add("collation", collation)
+        .add("rangeElementType", rangeElementType)
         .toString();
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(name, type, mode, description, policyTags);
+    return Objects.hash(name, type, mode, description, policyTags, rangeElementType);
   }
 
   @Override
@@ -414,9 +490,18 @@ public final class Field implements Serializable {
     if (precision != null) {
       fieldSchemaPb.setPrecision(precision);
     }
+    if (defaultValueExpression != null) {
+      fieldSchemaPb.setDefaultValueExpression(defaultValueExpression);
+    }
     if (getSubFields() != null) {
       List<TableFieldSchema> fieldsPb = Lists.transform(getSubFields(), TO_PB_FUNCTION);
       fieldSchemaPb.setFields(fieldsPb);
+    }
+    if (collation != null) {
+      fieldSchemaPb.setCollation(collation);
+    }
+    if (rangeElementType != null) {
+      fieldSchemaPb.setRangeElementType(rangeElementType.toPb());
     }
     return fieldSchemaPb;
   }
@@ -442,11 +527,21 @@ public final class Field implements Serializable {
     if (fieldSchemaPb.getPrecision() != null) {
       fieldBuilder.setPrecision(fieldSchemaPb.getPrecision());
     }
+    if (fieldSchemaPb.getDefaultValueExpression() != null) {
+      fieldBuilder.setDefaultValueExpression(fieldSchemaPb.getDefaultValueExpression());
+    }
     FieldList subFields =
         fieldSchemaPb.getFields() != null
             ? FieldList.of(Lists.transform(fieldSchemaPb.getFields(), FROM_PB_FUNCTION))
             : null;
     fieldBuilder.setType(LegacySQLTypeName.valueOf(fieldSchemaPb.getType()), subFields);
+    if (fieldSchemaPb.getCollation() != null) {
+      fieldBuilder.setCollation(fieldSchemaPb.getCollation());
+    }
+    if (fieldSchemaPb.getRangeElementType() != null) {
+      fieldBuilder.setRangeElementType(
+          FieldElementType.fromPb(fieldSchemaPb.getRangeElementType()));
+    }
     return fieldBuilder.build();
   }
 }

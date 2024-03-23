@@ -10,6 +10,28 @@
     ":maintainLockFilesDisabled",
     ":autodetectPinVersions"
   ],
+  "ignorePaths": [".kokoro/requirements.txt"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "^.kokoro/continuous/graalvm-native.*.cfg$",
+        "^.kokoro/presubmit/graalvm-native.*.cfg$"
+      ],
+      "matchStrings": ["value: \"gcr.io/cloud-devrel-public-resources/graalvm.*:(?<currentValue>.*?)\""],
+      "depNameTemplate": "com.google.cloud:sdk-platform-java-config",
+      "datasourceTemplate": "maven"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "^.github/workflows/unmanaged_dependency_check.yaml$"
+      ],
+      "matchStrings": ["uses: googleapis/sdk-platform-java/java-shared-dependencies/unmanaged-dependency-check@google-cloud-shared-dependencies/v(?<currentValue>.+?)\\n"],
+      "depNameTemplate": "com.google.cloud:sdk-platform-java-config",
+      "datasourceTemplate": "maven"
+    }
+  ],
   "packageRules": [
     {
       "packagePatterns": [
@@ -19,7 +41,8 @@
     },
     {
       "packagePatterns": [
-        "*"
+        "*",
+        "^com.google.cloud:google-cloud-bigquerystorage"
       ],
       "semanticCommitType": "deps",
       "semanticCommitScope": null
@@ -39,6 +62,7 @@
     {
       "packagePatterns": [
         "^com.google.cloud:google-cloud-bigquery",
+        "^com.google.cloud:google-cloud-bigtable",
         "^com.google.cloud:libraries-bom",
         "^com.google.cloud.samples:shared-configuration"
       ],
@@ -50,7 +74,8 @@
         "^junit:junit",
         "^com.google.truth:truth",
         "^org.mockito:mockito-core",
-        "^org.objenesis:objenesis"
+        "^org.objenesis:objenesis",
+        "^com.google.cloud:google-cloud-storage"
       ],
       "semanticCommitType": "test",
       "semanticCommitScope": "deps"
@@ -66,15 +91,6 @@
         "^com.fasterxml.jackson.core"
       ],
       "groupName": "jackson dependencies"
-    },
-    {
-      "packagePatterns": [
-        "^com.google.api.grpc:proto-google-cloud-datacatalog",
-        "^com.google.cloud:google-cloud-datacatalog"
-      ],
-      "groupName": "datacatalog dependencies",
-      "semanticCommitType": "test",
-      "semanticCommitScope": "deps"
     }
   ],
   "semanticCommits": true,

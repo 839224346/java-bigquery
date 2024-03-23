@@ -69,9 +69,12 @@ public class DatasetInfo implements Serializable {
   private final Long lastModified;
   private final String location;
   private final String selfLink;
-  private final Labels labels;
+  private final Annotations labels;
   private final EncryptionConfiguration defaultEncryptionConfiguration;
   private final Long defaultPartitionExpirationMs;
+  private final String defaultCollation;
+  private final ExternalDatasetReference externalDatasetReference;
+  private final String storageBillingModel;
 
   /** A builder for {@code DatasetInfo} objects. */
   public abstract static class Builder {
@@ -127,6 +130,19 @@ public class DatasetInfo implements Serializable {
     public abstract Builder setLabels(Map<String, String> labels);
 
     /**
+     * Optional. Information about the external metadata storage where the dataset is defined.
+     * Filled out when the dataset type is EXTERNAL
+     */
+    public abstract Builder setExternalDatasetReference(
+        ExternalDatasetReference externalDatasetReference);
+
+    /**
+     * Optional. Storage billing model to be used for all tables in the dataset. Can be set to
+     * PHYSICAL. Default is LOGICAL.
+     */
+    public abstract Builder setStorageBillingModel(String storageBillingModel);
+
+    /**
      * The default encryption key for all tables in the dataset. Once this property is set, all
      * newly-created partitioned tables in the dataset will have encryption key set to this value,
      * unless table creation request (or query) overrides the key.
@@ -148,6 +164,19 @@ public class DatasetInfo implements Serializable {
      */
     public abstract Builder setDefaultPartitionExpirationMs(Long defaultPartitionExpirationMs);
 
+    /**
+     * Optional. Defines the default collation specification of future tables created in the
+     * dataset. If a table is created in this dataset without table-level default collation, then
+     * the table inherits the dataset default collation, which is applied to the string fields that
+     * do not have explicit collation specified. A change to this field affects only tables created
+     * afterwards, and does not alter the existing tables. The following values are supported:
+     *
+     * <p>* 'und:ci': undetermined locale, case insensitive. * '': empty string. Default to
+     * case-sensitive behavior. (-- A wrapper is used here because it is possible to set the value
+     * to the empty string. --) (-- api-linter: standard-fields=disabled --)
+     */
+    public abstract Builder setDefaultCollation(String defaultCollation);
+
     /** Creates a {@code DatasetInfo} object. */
     public abstract DatasetInfo build();
   }
@@ -165,9 +194,12 @@ public class DatasetInfo implements Serializable {
     private Long lastModified;
     private String location;
     private String selfLink;
-    private Labels labels = Labels.ZERO;
+    private Annotations labels = Annotations.ZERO;
     private EncryptionConfiguration defaultEncryptionConfiguration;
     private Long defaultPartitionExpirationMs;
+    private String defaultCollation;
+    private ExternalDatasetReference externalDatasetReference;
+    private String storageBillingModel;
 
     BuilderImpl() {}
 
@@ -186,6 +218,9 @@ public class DatasetInfo implements Serializable {
       this.labels = datasetInfo.labels;
       this.defaultEncryptionConfiguration = datasetInfo.defaultEncryptionConfiguration;
       this.defaultPartitionExpirationMs = datasetInfo.defaultPartitionExpirationMs;
+      this.defaultCollation = datasetInfo.defaultCollation;
+      this.externalDatasetReference = datasetInfo.externalDatasetReference;
+      this.storageBillingModel = datasetInfo.storageBillingModel;
     }
 
     BuilderImpl(com.google.api.services.bigquery.model.Dataset datasetPb) {
@@ -212,13 +247,19 @@ public class DatasetInfo implements Serializable {
       this.lastModified = datasetPb.getLastModifiedTime();
       this.location = datasetPb.getLocation();
       this.selfLink = datasetPb.getSelfLink();
-      this.labels = Labels.fromPb(datasetPb.getLabels());
+      this.labels = Annotations.fromPb(datasetPb.getLabels());
       if (datasetPb.getDefaultEncryptionConfiguration() != null) {
         this.defaultEncryptionConfiguration =
             new EncryptionConfiguration.Builder(datasetPb.getDefaultEncryptionConfiguration())
                 .build();
       }
       this.defaultPartitionExpirationMs = datasetPb.getDefaultPartitionExpirationMs();
+      this.defaultCollation = datasetPb.getDefaultCollation();
+      if (datasetPb.getExternalDatasetReference() != null) {
+        this.externalDatasetReference =
+            ExternalDatasetReference.fromPb(datasetPb.getExternalDatasetReference());
+      }
+      this.storageBillingModel = datasetPb.getStorageBillingModel();
     }
 
     @Override
@@ -296,7 +337,7 @@ public class DatasetInfo implements Serializable {
      */
     @Override
     public Builder setLabels(Map<String, String> labels) {
-      this.labels = Labels.fromUser(labels);
+      this.labels = Annotations.fromUser(labels);
       return this;
     }
 
@@ -310,6 +351,24 @@ public class DatasetInfo implements Serializable {
     @Override
     public Builder setDefaultPartitionExpirationMs(Long defaultPartitionExpirationMs) {
       this.defaultPartitionExpirationMs = defaultPartitionExpirationMs;
+      return this;
+    }
+
+    @Override
+    public Builder setDefaultCollation(String defaultCollation) {
+      this.defaultCollation = defaultCollation;
+      return this;
+    }
+
+    @Override
+    public Builder setExternalDatasetReference(ExternalDatasetReference externalDatasetReference) {
+      this.externalDatasetReference = externalDatasetReference;
+      return this;
+    }
+
+    @Override
+    public Builder setStorageBillingModel(String storageBillingModel) {
+      this.storageBillingModel = storageBillingModel;
       return this;
     }
 
@@ -334,6 +393,9 @@ public class DatasetInfo implements Serializable {
     labels = builder.labels;
     defaultEncryptionConfiguration = builder.defaultEncryptionConfiguration;
     defaultPartitionExpirationMs = builder.defaultPartitionExpirationMs;
+    defaultCollation = builder.defaultCollation;
+    externalDatasetReference = builder.externalDatasetReference;
+    storageBillingModel = builder.storageBillingModel;
   }
 
   /** Returns the dataset identity. */
@@ -459,6 +521,22 @@ public class DatasetInfo implements Serializable {
     return defaultPartitionExpirationMs;
   }
 
+  public String getDefaultCollation() {
+    return defaultCollation;
+  }
+
+  public String getStorageBillingModel() {
+    return storageBillingModel;
+  }
+
+  /**
+   * Returns information about the external metadata storage where the dataset is defined. Filled
+   * out when the dataset type is EXTERNAL.
+   */
+  public ExternalDatasetReference getExternalDatasetReference() {
+    return externalDatasetReference;
+  }
+
   /** Returns a builder for the dataset object. */
   public Builder toBuilder() {
     return new BuilderImpl(this);
@@ -481,6 +559,9 @@ public class DatasetInfo implements Serializable {
         .add("labels", labels)
         .add("defaultEncryptionConfiguration", defaultEncryptionConfiguration)
         .add("defaultPartitionExpirationMs", defaultPartitionExpirationMs)
+        .add("defaultCollation", defaultCollation)
+        .add("externalDatasetReference", externalDatasetReference)
+        .add("storageBillingModel", storageBillingModel)
         .toString();
   }
 
@@ -555,6 +636,15 @@ public class DatasetInfo implements Serializable {
     }
     if (defaultPartitionExpirationMs != null) {
       datasetPb.setDefaultPartitionExpirationMs(defaultPartitionExpirationMs);
+    }
+    if (defaultCollation != null) {
+      datasetPb.setDefaultCollation(defaultCollation);
+    }
+    if (externalDatasetReference != null) {
+      datasetPb.setExternalDatasetReference(externalDatasetReference.toPb());
+    }
+    if (storageBillingModel != null) {
+      datasetPb.setStorageBillingModel(storageBillingModel);
     }
     return datasetPb;
   }

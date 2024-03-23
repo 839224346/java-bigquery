@@ -79,7 +79,19 @@ public abstract class ExternalTableDefinition extends TableDefinition {
       return setSourceUrisImmut(ImmutableList.copyOf(sourceUris));
     }
 
+    abstract Builder setFileSetSpecTypeInner(String spec);
+
     abstract Builder setSourceUrisImmut(ImmutableList<String> sourceUris);
+
+    /**
+     * Defines how to interpret files denoted by URIs. By default the files are assumed to be data
+     * files (this can be specified explicitly via FILE_SET_SPEC_TYPE_FILE_SYSTEM_MATCH). A second
+     * option is "FILE_SET_SPEC_TYPE_NEW_LINE_DELIMITED_MANIFEST" which interprets each file as a
+     * manifest file, where each line is a reference to a file.
+     */
+    public Builder setFileSetSpecType(String fileSetSpecType) {
+      return setFileSetSpecTypeInner(fileSetSpecType);
+    }
 
     /**
      * Sets the source format, and possibly some parsing options, of the external data. Supported
@@ -157,6 +169,14 @@ public abstract class ExternalTableDefinition extends TableDefinition {
       return setHivePartitioningOptionsInner(hivePartitioningOptions);
     };
 
+    /**
+     * When creating an external table, the user can provide a reference file with the table schema.
+     * This is enabled for the following formats: AVRO, PARQUET, ORC.
+     *
+     * @param referenceFileSchemaUri or {@code null} for none
+     */
+    public abstract Builder setReferenceFileSchemaUri(String referenceFileSchemaUri);
+
     abstract Builder setHivePartitioningOptionsInner(
         HivePartitioningOptions hivePartitioningOptions);
 
@@ -225,6 +245,14 @@ public abstract class ExternalTableDefinition extends TableDefinition {
   }
 
   @Nullable
+  public String getFileSetSpecType() {
+    return getFileSetSpecTypeInner();
+  }
+
+  @Nullable
+  abstract String getFileSetSpecTypeInner();
+
+  @Nullable
   public abstract ImmutableList<String> getSourceUrisImmut();
 
   /**
@@ -249,6 +277,9 @@ public abstract class ExternalTableDefinition extends TableDefinition {
    */
   @Nullable
   public abstract Boolean getAutodetect();
+
+  @Nullable
+  public abstract String getReferenceFileSchemaUri();
 
   /**
    * [Experimental] Returns the HivePartitioningOptions when the data layout follows Hive
@@ -300,6 +331,9 @@ public abstract class ExternalTableDefinition extends TableDefinition {
     if (getDecimalTargetTypes() != null) {
       externalConfigurationPb.setDecimalTargetTypes(getDecimalTargetTypes());
     }
+    if (getFormatOptions() != null && FormatOptions.PARQUET.equals(getFormatOptions().getType())) {
+      externalConfigurationPb.setParquetOptions(((ParquetOptions) getFormatOptions()).toPb());
+    }
     if (getFormatOptions() != null && FormatOptions.AVRO.equals(getFormatOptions().getType())) {
       externalConfigurationPb.setAvroOptions(((AvroOptions) getFormatOptions()).toPb());
     }
@@ -317,9 +351,17 @@ public abstract class ExternalTableDefinition extends TableDefinition {
     if (getAutodetect() != null) {
       externalConfigurationPb.setAutodetect(getAutodetect());
     }
+    if (getReferenceFileSchemaUri() != null) {
+      externalConfigurationPb.setReferenceFileSchemaUri(getReferenceFileSchemaUri());
+    }
+
     if (getHivePartitioningOptions() != null) {
       externalConfigurationPb.setHivePartitioningOptions(getHivePartitioningOptions().toPb());
     }
+    if (getFileSetSpecType() != null) {
+      externalConfigurationPb.setFileSetSpecType(getFileSetSpecType());
+    }
+
     return externalConfigurationPb;
   }
 
@@ -486,6 +528,12 @@ public abstract class ExternalTableDefinition extends TableDefinition {
         builder.setHivePartitioningOptions(
             HivePartitioningOptions.fromPb(externalDataConfiguration.getHivePartitioningOptions()));
       }
+      if (externalDataConfiguration.getReferenceFileSchemaUri() != null) {
+        builder.setReferenceFileSchemaUri(externalDataConfiguration.getReferenceFileSchemaUri());
+      }
+      if (externalDataConfiguration.getFileSetSpecType() != null) {
+        builder.setFileSetSpecType(externalDataConfiguration.getFileSetSpecType());
+      }
     }
     return builder.build();
   }
@@ -538,10 +586,17 @@ public abstract class ExternalTableDefinition extends TableDefinition {
     if (externalDataConfiguration.getAutodetect() != null) {
       builder.setAutodetect(externalDataConfiguration.getAutodetect());
     }
+    if (externalDataConfiguration.getReferenceFileSchemaUri() != null) {
+      builder.setReferenceFileSchemaUri(externalDataConfiguration.getReferenceFileSchemaUri());
+    }
     if (externalDataConfiguration.getHivePartitioningOptions() != null) {
       builder.setHivePartitioningOptions(
           HivePartitioningOptions.fromPb(externalDataConfiguration.getHivePartitioningOptions()));
     }
+    if (externalDataConfiguration.getFileSetSpecType() != null) {
+      builder.setFileSetSpecType(externalDataConfiguration.getFileSetSpecType());
+    }
+
     return builder.build();
   }
 }
